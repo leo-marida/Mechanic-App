@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5E5',
-    marginTop: StatusBar.currentHeight || 0,
+    marginTop: (StatusBar.currentHeight || 0) + 10,
   },
   searchInput: {
     height: 45,
