@@ -16,6 +16,7 @@ import {
 import Modal from 'react-native-modal';
 import firestore from '@react-native-firebase/firestore';
 import {Dropdown} from 'react-native-element-dropdown';
+import Slider from '@react-native-community/slider'; // <-- 1. IMPORT SLIDER
 
 I18nManager.forceRTL(true);
 I18nManager.allowRTL(true);
@@ -29,18 +30,22 @@ interface Equipment {
   soldPrice: number;
 }
 
+// --- 2. UPDATE FILTEROPTIONS INTERFACE ---
 interface FilterOptions {
   brand: string | null;
   sort: string | null;
+  maxCount: number | null;
 }
 
 const App = () => {
   const [loading, setLoading] = useState(true);
   const [allEquipment, setAllEquipment] = useState<Equipment[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  // --- 3. UPDATE FILTERS INITIAL STATE ---
   const [filters, setFilters] = useState<FilterOptions>({
     brand: null,
     sort: null,
+    maxCount: null,
   });
   const [showFilters, setShowFilters] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Equipment | null>(null);
@@ -77,7 +82,8 @@ const App = () => {
     return () => subscriber();
   }, []);
 
-  const {filteredAndGroupedData, brandOptions} = useMemo(() => {
+  // --- 4. UPDATE FILTERING LOGIC ---
+  const {filteredAndGroupedData, brandOptions, maxCountValue} = useMemo(() => {
     const uniqueBrands = [
       ...new Set(allEquipment.map(item => item.brand)),
     ].sort();
@@ -86,13 +92,19 @@ const App = () => {
       value: brand,
     }));
 
+    const highestCount = allEquipment.length > 0 ? Math.max(...allEquipment.map(item => item.count)) : 0;
+    
+    // Use highestCount as the default if filters.maxCount is not set
+    const currentMaxCount = filters.maxCount ?? highestCount;
+
     let filtered = allEquipment
       .filter(
         item =>
           item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.name.toLowerCase().includes(searchQuery.toLowerCase()),
       )
-      .filter(item => (filters.brand ? item.brand === filters.brand : true));
+      .filter(item => (filters.brand ? item.brand === filters.brand : true))
+      .filter(item => item.count <= currentMaxCount); // <-- New filter for count
 
     if (filters.sort) {
       switch (filters.sort) {
@@ -124,6 +136,7 @@ const App = () => {
     return {
       filteredAndGroupedData: finalData,
       brandOptions: brandDropdownOptions,
+      maxCountValue: highestCount,
     };
   }, [allEquipment, searchQuery, filters]);
 
@@ -192,8 +205,9 @@ const App = () => {
     }
   };
 
+  // --- 5. UPDATE CLEARFILTERS FUNCTION ---
   const clearFilters = () => {
-    setFilters({brand: null, sort: null});
+    setFilters({brand: null, sort: null, maxCount: null});
     setSearchQuery('');
     Keyboard.dismiss();
   };
@@ -284,6 +298,25 @@ const App = () => {
               value={filters.sort}
               onChange={item => setFilters({...filters, sort: item.value})}
             />
+            {/* --- 6. ADD THE SLIDER UI --- */}
+            <View style={styles.sliderContainer}>
+              <Text style={styles.sliderLabel}>
+                الكمية القصوى: {filters.maxCount ?? Math.round(maxCountValue)}
+              </Text>
+              <Slider
+                style={{width: '100%', height: 40}}
+                minimumValue={0}
+                maximumValue={maxCountValue > 0 ? maxCountValue : 1} // Ensure max is not 0
+                minimumTrackTintColor="#007AFF"
+                maximumTrackTintColor="#D1D1D6"
+                thumbTintColor="#007AFF"
+                value={filters.maxCount ?? maxCountValue}
+                onValueChange={value =>
+                  setFilters({...filters, maxCount: Math.round(value)})
+                }
+              />
+            </View>
+
             <TouchableOpacity
               style={styles.clearFilterButton}
               onPress={clearFilters}>
@@ -461,6 +494,7 @@ const App = () => {
   );
 };
 
+// --- 7. ADD STYLES FOR SLIDER ---
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#F9F9F9'},
   loadingContainer: {justifyContent: 'center', alignItems: 'center'},
@@ -470,7 +504,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5E5',
-    marginTop: StatusBar.currentHeight || 0
+    marginTop: StatusBar.currentHeight || 0,
   },
   searchInput: {
     height: 45,
@@ -500,8 +534,18 @@ const styles = StyleSheet.create({
   },
   placeholderStyle: {fontSize: 16, textAlign: 'right'},
   selectedTextStyle: {fontSize: 16, textAlign: 'right'},
+  sliderContainer: {
+    marginTop: 15,
+    paddingHorizontal: 5,
+  },
+  sliderLabel: {
+    fontSize: 16,
+    color: '#1C1C1E',
+    textAlign: 'right',
+    marginBottom: 5,
+  },
   clearFilterButton: {
-    marginTop: 10,
+    marginTop: 15,
     backgroundColor: '#FF3B30',
     padding: 10,
     borderRadius: 8,
